@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video to Canvas Demo</title>
+    <title>Video to B&W Converter</title>
     <style>
         #videoContainer, #canvasContainer {
             display: inline-block;
+            margin: 10px;
+        }
+        #controls {
             margin: 10px;
         }
     </style>
@@ -22,12 +25,20 @@
     </div>
     <br>
     <input type="file" id="fileInput" accept="video/*">
+    <div id="controls">
+        <label>
+            <input type="checkbox" id="bwCheckbox"> Apply Black & White Filter
+        </label>
+    </div>
 
     <script>
         const video = document.getElementById('videoInput');
         const canvas = document.getElementById('outputCanvas');
         const ctx = canvas.getContext('2d');
         const fileInput = document.getElementById('fileInput');
+        const bwCheckbox = document.getElementById('bwCheckbox');
+
+        let isBlackAndWhite = false;
 
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -35,37 +46,37 @@
             video.src = fileURL;
         });
 
-        video.addEventListener('play', function() {
-            function step() {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                requestAnimationFrame(step);
-            }
-            requestAnimationFrame(step);
+        bwCheckbox.addEventListener('change', function() {
+            isBlackAndWhite = this.checked;
         });
 
-        // Basic frame processing function (placeholder)
-        function processFrame(imageData) {
-            // This is where you'll implement your video processing logic
-            // For now, we'll just return the original imageData
+        function toBlackAndWhite(imageData) {
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                data[i] = data[i + 1] = data[i + 2] = avg;
+            }
             return imageData;
         }
 
-        // Main processing loop
+        function processFrame(imageData) {
+            if (isBlackAndWhite) {
+                return toBlackAndWhite(imageData);
+            }
+            return imageData;
+        }
+
         function processVideo() {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             
-            // Process the frame
             let processedImageData = processFrame(imageData);
             
-            // Put the processed image data back to the canvas
             ctx.putImageData(processedImageData, 0, 0);
             
-            // Loop
             requestAnimationFrame(processVideo);
         }
 
-        // Start processing when video plays
         video.addEventListener('play', processVideo);
     </script>
 </body>
