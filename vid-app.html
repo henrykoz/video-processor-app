@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video to Canvas Demo</title>
+    <style>
+        #videoContainer, #canvasContainer {
+            display: inline-block;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="videoContainer">
+        <video id="videoInput" width="640" height="480" controls>
+            Your browser does not support the video tag.
+        </video>
+    </div>
+    <div id="canvasContainer">
+        <canvas id="outputCanvas" width="640" height="480"></canvas>
+    </div>
+    <br>
+    <input type="file" id="fileInput" accept="video/*">
+
+    <script>
+        const video = document.getElementById('videoInput');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('fileInput');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const fileURL = URL.createObjectURL(file);
+            video.src = fileURL;
+        });
+
+        video.addEventListener('play', function() {
+            function step() {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        });
+
+        // Basic frame processing function (placeholder)
+        function processFrame(imageData) {
+            // This is where you'll implement your video processing logic
+            // For now, we'll just return the original imageData
+            return imageData;
+        }
+
+        // Main processing loop
+        function processVideo() {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // Process the frame
+            let processedImageData = processFrame(imageData);
+            
+            // Put the processed image data back to the canvas
+            ctx.putImageData(processedImageData, 0, 0);
+            
+            // Loop
+            requestAnimationFrame(processVideo);
+        }
+
+        // Start processing when video plays
+        video.addEventListener('play', processVideo);
+    </script>
+</body>
+</html>
