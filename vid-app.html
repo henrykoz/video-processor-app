@@ -6,6 +6,7 @@
     <title>Advanced Video Processor: Body Detection and Edge Detection</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <style>
         #videoContainer, #canvasContainer {
             display: inline-block;
@@ -31,44 +32,57 @@
     </style>
 </head>
 <body>
-    <div id="videoContainer">
-        <video id="videoInput" width="640" height="480" controls>
-            Your browser does not support the video tag.
-        </video>
-    </div>
-    <div id="canvasContainer">
-        <canvas id="outputCanvas" width="640" height="480"></canvas>
-    </div>
-    <br>
-    <input type="file" id="fileInput" accept="video/*">
-    <div id="controls">
-        <label>
-            <input type="checkbox" id="edgeCheckbox"> Apply Edge Detection
-        </label>
-        <div class="slider-container">
-            <label for="thresholdLow">Low Threshold:</label>
-            <input type="range" id="thresholdLow" min="0" max="255" value="50">
-            <span id="thresholdLowValue">50</span>
+    <div class="container">
+        <div id="videoContainer">
+            <video id="videoInput" width="640" height="480" controls>
+                Your browser does not support the video tag.
+            </video>
         </div>
-        <div class="slider-container">
-            <label for="thresholdHigh">High Threshold:</label>
-            <input type="range" id="thresholdHigh" min="0" max="255" value="150">
-            <span id="thresholdHighValue">150</span>
+        <div id="canvasContainer">
+            <canvas id="outputCanvas" width="640" height="480"></canvas>
         </div>
-        <label>
-            <input type="checkbox" id="poseCheckbox"> Apply Pose Detection
-        </label>
-        <div class="slider-container">
-            <label for="frameCount">Number of Frames:</label>
-            <input type="range" id="frameCount" min="10" max="200" value="50">
-            <span id="frameCountValue">50</span>
+        <br>
+        <input type="file" id="fileInput" accept="video/*" class="form-control-file">
+        <div id="controls" class="mt-3">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="edgeCheckbox">
+                <label class="form-check-label" for="edgeCheckbox">Apply Edge Detection</label>
+            </div>
+            <div class="form-group">
+                <label for="thresholdLow">Low Threshold:</label>
+                <input type="range" class="form-control-range" id="thresholdLow" min="0" max="255" value="50">
+                <span id="thresholdLowValue">50</span>
+            </div>
+            <div class="form-group">
+                <label for="thresholdHigh">High Threshold:</label>
+                <input type="range" class="form-control-range" id="thresholdHigh" min="0" max="255" value="150">
+                <span id="thresholdHighValue">150</span>
+            </div>
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="poseCheckbox">
+                <label class="form-check-label" for="poseCheckbox">Apply Pose Detection</label>
+            </div>
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="invertCheckbox">
+                <label class="form-check-label" for="invertCheckbox">Invert B&W (Body Shape)</label>
+            </div>
+            <div class="form-group">
+                <label for="bwThreshold">B&W Threshold:</label>
+                <input type="range" class="form-control-range" id="bwThreshold" min="0" max="255" value="128">
+                <span id="bwThresholdValue">128</span>
+            </div>
+            <div class="form-group">
+                <label for="frameCount">Number of Frames:</label>
+                <input type="range" class="form-control-range" id="frameCount" min="10" max="200" value="50">
+                <span id="frameCountValue">50</span>
+            </div>
+            <p id="frameWarning" class="warning"></p>
         </div>
-        <p id="frameWarning" class="warning"></p>
+        <button id="startRecording" class="btn btn-primary">Start Recording GIF</button>
+        <button id="stopRecording" class="btn btn-danger" disabled>Stop Recording GIF</button>
+        <div id="recordingStatus"></div>
+        <div id="gifContainer"></div>
     </div>
-    <button id="startRecording">Start Recording GIF</button>
-    <button id="stopRecording" disabled>Stop Recording GIF</button>
-    <div id="recordingStatus"></div>
-    <div id="gifContainer"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/posenet"></script>
@@ -81,10 +95,13 @@
         const fileInput = document.getElementById('fileInput');
         const edgeCheckbox = document.getElementById('edgeCheckbox');
         const poseCheckbox = document.getElementById('poseCheckbox');
+        const invertCheckbox = document.getElementById('invertCheckbox');
         const thresholdLowSlider = document.getElementById('thresholdLow');
         const thresholdHighSlider = document.getElementById('thresholdHigh');
         const thresholdLowValue = document.getElementById('thresholdLowValue');
         const thresholdHighValue = document.getElementById('thresholdHighValue');
+        const bwThresholdSlider = document.getElementById('bwThreshold');
+        const bwThresholdValue = document.getElementById('bwThresholdValue');
         const startRecordingBtn = document.getElementById('startRecording');
         const stopRecordingBtn = document.getElementById('stopRecording');
         const gifContainer = document.getElementById('gifContainer');
@@ -95,8 +112,10 @@
 
         let isEdgeDetection = false;
         let isPoseDetection = false;
+        let isInvert = false;
         let thresholdLow = 50;
         let thresholdHigh = 150;
+        let bwThreshold = 128;
         let poseNet;
         let gif;
         let isRecording = false;
@@ -109,41 +128,61 @@
             const file = e.target.files[0];
             const fileURL = URL.createObjectURL(file);
             video.src = fileURL;
+            console.log('Video file loaded:', file.name);
         });
 
         edgeCheckbox.addEventListener('change', function() {
             isEdgeDetection = this.checked;
+            console.log('Edge detection:', isEdgeDetection ? 'enabled' : 'disabled');
         });
 
         poseCheckbox.addEventListener('change', function() {
             isPoseDetection = this.checked;
+            console.log('Pose detection:', isPoseDetection ? 'enabled' : 'disabled');
+        });
+
+        invertCheckbox.addEventListener('change', function() {
+            isInvert = this.checked;
+            console.log('Invert B&W:', isInvert ? 'enabled' : 'disabled');
         });
 
         thresholdLowSlider.addEventListener('input', function() {
             thresholdLow = parseInt(this.value);
             thresholdLowValue.textContent = thresholdLow;
+            console.log('Low threshold set to:', thresholdLow);
         });
 
         thresholdHighSlider.addEventListener('input', function() {
             thresholdHigh = parseInt(this.value);
             thresholdHighValue.textContent = thresholdHigh;
+            console.log('High threshold set to:', thresholdHigh);
+        });
+
+        bwThresholdSlider.addEventListener('input', function() {
+            bwThreshold = parseInt(this.value);
+            bwThresholdValue.textContent = bwThreshold;
+            console.log('B&W Threshold set to:', bwThreshold);
         });
 
         frameCountSlider.addEventListener('input', function() {
             maxFrames = parseInt(this.value);
             frameCountValue.textContent = maxFrames;
             updateFrameWarning();
+            console.log('Max frames set to:', maxFrames);
         });
 
         function updateFrameWarning() {
             if (maxFrames > SUGGESTED_MAX_FRAMES) {
                 frameWarning.textContent = `Warning: ${maxFrames} frames may result in a large file size and slow processing.`;
+                console.log('Frame warning displayed');
             } else {
                 frameWarning.textContent = '';
+                console.log('Frame warning cleared');
             }
         }
 
         function detectEdges(imageData) {
+            console.log('Detecting edges');
             const src = cv.matFromImageData(imageData);
             const dst = new cv.Mat();
             cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY);
@@ -162,12 +201,36 @@
             return result;
         }
 
+        function convertToBlackAndWhite(imageData) {
+            console.log('Converting to black and white');
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const bw = avg < bwThreshold ? 0 : 255;
+                data[i] = data[i + 1] = data[i + 2] = bw;
+            }
+            return imageData;
+        }
+
+        function invertImage(imageData) {
+            console.log('Inverting image');
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 255 - data[i];
+                data[i + 1] = 255 - data[i + 1];
+                data[i + 2] = 255 - data[i + 2];
+            }
+            return imageData;
+        }
+
         async function detectPose(imageData) {
+            console.log('Detecting pose');
             const pose = await poseNet.estimateSinglePose(video);
             return pose;
         }
 
         function drawPose(pose) {
+            console.log('Drawing pose');
             const minPartConfidence = 0.5;
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
@@ -182,9 +245,17 @@
         }
 
         async function processFrame(imageData) {
+            console.log('Processing frame');
             if (isEdgeDetection) {
                 imageData = detectEdges(imageData);
+            } else {
+                imageData = convertToBlackAndWhite(imageData);
             }
+
+            if (isInvert) {
+                imageData = invertImage(imageData);
+            }
+
             ctx.putImageData(imageData, 0, 0);
             
             if (isPoseDetection) {
@@ -218,9 +289,13 @@
             requestAnimationFrame(processVideo);
         }
 
-        video.addEventListener('play', processVideo);
+        video.addEventListener('play', function() {
+            console.log('Video started playing');
+            processVideo();
+        });
 
         async function loadPoseNet() {
+            console.log('Loading PoseNet model');
             poseNet = await posenet.load();
             console.log('PoseNet model loaded');
         }
@@ -228,6 +303,7 @@
         loadPoseNet();
 
         function initializeGif() {
+            console.log('Initializing GIF');
             gif = new GIF({
                 workers: 2,
                 quality: 10,
@@ -245,31 +321,39 @@
             gif.on('finished', function(blob) {
                 console.log('GIF created:', blob);
                 const url = URL.createObjectURL(blob);
+                console.log('Blob URL created:', url);
                 
                 gifContainer.innerHTML = '';
+                console.log('GIF container cleared');
 
                 const img = document.createElement('img');
                 img.src = url;
                 gifContainer.appendChild(img);
+                console.log('GIF image added to container');
 
                 const downloadButton = document.createElement('button');
                 downloadButton.textContent = 'Download GIF';
+                downloadButton.className = 'btn btn-success mt-2';
                 downloadButton.onclick = function() {
                     const link = document.createElement('a');
                     link.href = url;
                     link.download = 'processed_video.gif';
                     link.click();
+                    console.log('Download initiated');
                 };
                 gifContainer.appendChild(downloadButton);
+                console.log('Download button added');
 
                 const fileSize = (blob.size / 1024 / 1024).toFixed(2);
                 const fileSizeInfo = document.createElement('p');
                 fileSizeInfo.textContent = `File size: ${fileSize} MB`;
                 gifContainer.appendChild(fileSizeInfo);
+                console.log('File size info added');
 
                 startRecordingBtn.disabled = false;
                 stopRecordingBtn.disabled = true;
                 updateRecordingStatus();
+                console.log('Recording buttons updated');
             });
         }
 
@@ -286,11 +370,12 @@
             updateRecordingStatus();
         }
 
-        function stopRecording() {
+                function stopRecording() {
             console.log('Stop recording');
             isRecording = false;
             try {
                 gif.render();
+                console.log('GIF rendering started');
             } catch (error) {
                 console.error('Error rendering GIF:', error);
                 gifContainer.innerHTML = '<p>Error creating GIF. Please try again.</p>';
@@ -306,6 +391,7 @@
             } else {
                 recordingStatus.textContent = '';
             }
+            console.log('Recording status updated:', recordingStatus.textContent);
         }
 
         startRecordingBtn.addEventListener('click', startRecording);
